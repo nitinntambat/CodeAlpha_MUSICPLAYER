@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Web Music Player</title>
+<style>
+  :root{
+    --bg: #f3f4f6; --card:#fff; --text:#0f172a; --muted:#64748b; --accent:#7c3aed;
+  }
+  [data-theme="dark"] { --bg:#0b1220; --card:#071127; --text:#e6eef8; --muted:#9aa9bf; --accent:#8b5cf6; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);padding:18px}
+  .container{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:18px}
+  .card{background:var(--card);border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(2,6,23,0.08)}
+  h2{margin:4px 0 12px;font-size:18px}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type="text"], select{width:100%;padding:8px;border-radius:8px;border:1px solid #dbe2ef;background:transparent;color:var(--text)}
+  .row{display:flex;gap:8px}
+  .btn{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:white;cursor:pointer}
+  .btn.secondary{background:transparent;border:1px solid rgba(100,116,139,.12);color:var(--text)}
+  .tracks{max-height:54vh;overflow:auto;margin-top:10px}
+  .track{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:grab}
+  .track:hover{background:rgba(0,0,0,0.03)}
+  .meta{flex:1;min-width:0}
+  .meta .title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .sub{font-size:12px;color:var(--muted)}
+  .controls{display:flex;align-items:center;gap:8px;justify-content:center;padding:10px}
+  .progress{width:100%;height:8px;border-radius:8px;background:#e6eef8;cursor:pointer;position:relative;margin:8px 0}
+  .bar{height:100%;background:var(--accent);width:0;border-radius:8px}
+  .small{font-size:12px;color:var(--muted)}
+  .playlist-list{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:transparent;border:1px solid rgba(100,116,139,.08);cursor:pointer}
+  .pill.active{background:var(--accent);color:white;border-color:transparent}
+  footer{margin-top:12px;font-size:12px;color:var(--muted);text-align:center}
+  @media (max-width:880px){.container{grid-template-columns:1fr;}}
+</style>
+</head>
+<body data-theme="light">
+
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+  <h1 style="margin:0;font-size:20px">Web Music Player</h1>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <label class="small" for="themeToggle">Dark</label>
+    <button id="themeToggle" class="btn secondary">Toggle Theme</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- LEFT: Upload + Playlists -->
+  <div class="card">
+    <h2>Upload / Add Track</h2>
+
+    <label for="file">Choose audio file</label>
+    <input id="file" type="file" accept="audio/*" />
+
+    <div style="height:8px"></div>
+
+    <label>Title</label>
+    <input id="title" type="text" placeholder="Track title (optional)" />
+
+    <label>Artist</label>
+    <input id="artist" type="text" placeholder="Artist name (optional)" />
+
+    <label>Genre</label>
+    <input id="genre" type="text" placeholder="Genre (rock / pop / classical)" />
+
+    <div style="height:8px"></div>
+    <div class="row">
+      <button id="addBtn" class="btn">Add to Library</button>
+      <button id="clearLibrary" class="btn secondary">Clear Library</button>
+    </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid rgba(0,0,0,0.06)" />
+
+    <h2>Playlists</h2>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="plName" type="text" placeholder="New playlist name" />
+      <button id="createPl" class="btn">Create</button>
+    </div>
+    <div class="playlist-list" id="playlists"></div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid rgba(0,0,0,0.06)" />
+
+    <h2>Library</h2>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="search" type="text" placeholder="Search title/artist/genre" />
+      <select id="filterGenre"><option value="">All genres</option></select>
+    </div>
+
+    <div class="tracks" id="library"></div>
+    <footer>Tip: files uploaded are usable while the page is open. Save playlists to keep metadata.</footer>
+  </div>
+
+  <!-- RIGHT: Player + Playlist view -->
+  <div class="card">
+    <h2>Player</h2>
+
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:88px;height:88px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#4f46e5)"></div>
+      <div style="flex:1">
+        <div id="nowTitle" class="small" style="font-weight:700">—</div>
+        <div id="nowArtist" class="small" style="margin-top:6px;color:var(--muted)">—</div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button id="prevBtn" title="Previous" class="btn secondary">⏮</button>
+          <button id="playBtn" title="Play/Pause" class="btn"▶️</button>
+          <button id="nextBtn" title="Next" class="btn secondary">⏭</button>
+          <div style="flex:1"></div>
+          <input id="vol" type="range" min="0" max="1" step="0.01" style="width:140px" />
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+      <div style="display:flex;justify-content:space-between"><span id="currTime" class="small">0:00</span><span id="durTime" class="small">0:00</span></div>
+    </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid rgba(0,0,0,0.06)" />
+
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 style="margin:0">Playlist</h2>
+      <div style="display:flex;gap:8px">
+        <select id="selectPl"><option value="">-- Choose playlist --</option></select>
+        <button id="savePl" class="btn">Save</button>
+        <button id="deletePl" class="btn secondary">Delete</button>
+      </div>
+    </div>
+
+    <div class="tracks" id="currentPlaylist"></div>
+  </div>
+</div>
+
+<!-- Hidden audio element -->
+<audio id="audio" crossorigin="anonymous"></audio>
+
+<script>
+/* ======= State ======= */
+const state = {
+  library: [], // {id, title, artist, genre, url, fileName, blobAvailable}
+  playlists: {}, // name -> array of track ids
+  current: { playlistName: null, index: 0, playing: false }
+};
+
+/* ======= Helpers ======= */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const qs = id => document.getElementById(id);
+
+/* ======= Elements ======= */
+const ffile = qs('file'), titleIn = qs('title'), artistIn = qs('artist'), genreIn = qs('genre');
+const addBtn = qs('addBtn'), libraryEl = qs('library'), playlistsEl = qs('playlists');
+const createPl = qs('createPl'), plName = qs('plName'), selectPl = qs('selectPl');
+const currentPlaylistEl = qs('currentPlaylist'), selectGenre = qs('filterGenre');
+const searchInput = qs('search'), clearLibrary = qs('clearLibrary');
+const audio = qs('audio'), playBtn = qs('playBtn'), prevBtn = qs('prevBtn'), nextBtn = qs('nextBtn');
+const vol = qs('vol'), progress = qs('progress'), bar = qs('bar'), currTime = qs('currTime'), durTime = qs('durTime');
+const nowTitle = qs('nowTitle'), nowArtist = qs('nowArtist');
+const savePl = qs('savePl'), deletePl = qs('deletePl'), themeToggle = qs('themeToggle');
+
+/* ======= Persistence (metadata only) ======= */
+function saveMeta(){
+  const payload = {
+    library: state.library.map(t => ({id:t.id,title:t.title,artist:t.artist,genre:t.genre,fileName:t.fileName})),
+    playlists: state.playlists
+  };
+  localStorage.setItem('music.meta', JSON.stringify(payload));
+}
+function loadMeta(){
+  const raw = localStorage.getItem('music.meta');
+  if(!raw) return;
+  try{
+    const p = JSON.parse(raw);
+    state.library = (p.library||[]).map(t => ({...t,url:null,blobAvailable:false}));
+    state.playlists = p.playlists || {};
+  }catch(e){ console.warn('load failed', e) }
+}
+
+/* ======= Library UI ======= */
+function renderLibrary(filter=''){
+  libraryEl.innerHTML = '';
+  const q = filter.trim().toLowerCase();
+  const genres = new Set();
+  for(const t of state.library){
+    genres.add(t.genre || '');
+    if(q && !((t.title||'').toLowerCase().includes(q) || (t.artist||'').toLowerCase().includes(q) || (t.genre||'').toLowerCase().includes(q))) continue;
+
+    const div = document.createElement('div'); div.className='track';
+    const meta = document.createElement('div'); meta.className='meta';
+    const title = document.createElement('div'); title.className='title'; title.textContent = t.title || t.fileName || 'Unknown';
+    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = (t.artist ? t.artist + ' • ' : '') + (t.genre || '');
+    meta.appendChild(title); meta.appendChild(sub);
+    const addBtn = document.createElement('button'); addBtn.className='btn secondary'; addBtn.textContent='Add ➕';
+    addBtn.onclick = ()=> addToCurrent(t.id);
+    const removeBtn = document.createElement('button'); removeBtn.className='btn secondary'; removeBtn.textContent='Remove';
+    removeBtn.onclick = ()=> {
+      state.library = state.library.filter(x=>x.id!==t.id);
+      // remove from playlists too
+      for(const p in state.playlists) state.playlists[p] = state.playlists[p].filter(id=>id!==t.id);
+      saveMeta(); renderLibrary(searchInput.value); renderPlaylists(); renderSelectPl();
+    };
+    div.appendChild(meta); div.appendChild(addBtn); div.appendChild(removeBtn);
+    libraryEl.appendChild(div);
+  }
+  // fill genre filter
+  selectGenre.innerHTML = '<option value="">All genres</option>';
+  [...genres].filter(g=>g).sort().forEach(g=>{
+    const o = document.createElement('option'); o.value=g; o.textContent=g; selectGenre.appendChild(o);
+  });
+}
+
+/* ======= Playlists UI ======= */
+function renderPlaylists(){
+  playlistsEl.innerHTML='';
+  Object.keys(state.playlists).forEach(name=>{
+    const p = document.createElement('button'); p.className='pill';
+    p.textContent = name;
+    p.onclick = ()=> {
+      // load playlist into selector and current view
+      selectPl.value = name;
+      loadPlaylist(name);
+    };
+    playlistsEl.appendChild(p);
+  });
+  // update selectPl
+  renderSelectPl();
+}
+function renderSelectPl(){
+  selectPl.innerHTML = '<option value="">-- Choose playlist --</option>';
+  Object.keys(state.playlists).forEach(n=> {
+    const o = document.createElement('option'); o.value=n; o.textContent=n; selectPl.appendChild(o);
+  });
+}
+
+/* ======= Current Playlist UI ======= */
+function renderCurrentPlaylist(){
+  currentPlaylistEl.innerHTML='';
+  const name = state.current.playlistName;
+  if(!name){ currentPlaylistEl.innerHTML='<div class="small" style="padding:8px;color:var(--muted)">No playlist selected</div>'; return;}
+  const list = state.playlists[name]||[];
+  list.forEach((id, idx)=>{
+    const t = state.library.find(x=>x.id===id) || {title:'(missing)',artist:'',genre:''};
+    const div = document.createElement('div'); div.className='track';
+    const meta = document.createElement('div'); meta.className='meta';
+    const title = document.createElement('div'); title.className='title'; title.textContent = t.title || t.fileName || '(untitled)';
+    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = (t.artist ? t.artist + ' • ' : '') + (t.genre || '');
+    meta.appendChild(title); meta.appendChild(sub);
+    const playNow = document.createElement('button'); playNow.className='btn'; playNow.textContent='Play';
+    playNow.onclick = ()=> { state.current.index = idx; playIndex(); };
+    const remove = document.createElement('button'); remove.className='btn secondary'; remove.textContent='Remove';
+    remove.onclick = ()=> {
+      state.playlists[name].splice(idx,1); saveMeta(); renderCurrentPlaylist();
+    };
+    div.appendChild(meta); div.appendChild(playNow); div.appendChild(remove);
+    currentPlaylistEl.appendChild(div);
+  });
+}
+
+/* ======= Playlist actions ======= */
+function createPlaylist(name){
+  if(!name) return alert('Enter playlist name');
+  if(state.playlists[name]) return alert('Playlist exists');
+  state.playlists[name] = [];
+  saveMeta(); renderPlaylists();
+}
+function loadPlaylist(name){
+  if(!state.playlists[name]) return alert('Playlist not found');
+  state.current.playlistName = name; state.current.index = 0;
+  renderCurrentPlaylist();
+}
+function savePlaylist(name){
+  if(!name) return alert('No playlist selected');
+  saveMeta();
+  alert('Playlist metadata saved.');
+}
+function deletePlaylist(name){
+  if(!name) return alert('No playlist selected');
+  if(!confirm('Delete playlist "'+name+'"? This will remove metadata only.')) return;
+  delete state.playlists[name];
+  if(state.current.playlistName===name) state.current.playlistName = null;
+  saveMeta(); renderPlaylists(); renderCurrentPlaylist();
+}
+
+/* ======= Add track & library logic ======= */
+addBtn.onclick = ()=>{
+  const file = ffile.files[0];
+  if(!file) return alert('Select an audio file first');
+  const id = uid();
+  const t = {
+    id, title: titleIn.value || file.name.replace(/\.[^.]+$/,''),
+    artist: artistIn.value || '', genre: genreIn.value || '',
+    url: URL.createObjectURL(file), fileName: file.name, blobAvailable:true
+  };
+  state.library.push(t);
+  // reset inputs
+  ffile.value=''; titleIn.value=''; artistIn.value=''; genreIn.value='';
+  saveMeta(); renderLibrary(searchInput.value); renderPlaylists(); renderSelectPl();
+};
+
+clearLibrary.onclick = ()=>{
+  if(!confirm('Clear entire library and playlists?')) return;
+  state.library = []; state.playlists = {}; state.current = {playlistName:null,index:0,playing:false};
+  saveMeta(); renderLibrary(); renderPlaylists(); renderCurrentPlaylist();
+};
+
+/* ======= Add to current playlist ======= */
+function addToCurrent(trackId){
+  const plName = state.current.playlistName || selectPl.value;
+  if(!plName) return alert('Select or create a playlist first (select from dropdown or choose one).');
+  if(!state.playlists[plName]) state.playlists[plName]=[];
+  state.playlists[plName].push(trackId);
+  saveMeta(); renderCurrentPlaylist(); renderPlaylists();
+}
+
+/* ======= Player controls ======= */
+function getCurrentList(){
+  const name = state.current.playlistName;
+  if(!name) return [];
+  return (state.playlists[name]||[]).map(id => state.library.find(t=>t.id===id)).filter(Boolean);
+}
+function playIndex(){
+  const list = getCurrentList();
+  if(list.length===0) return alert('Playlist empty');
+  const idx = state.current.index = Math.max(0, Math.min(state.current.index, list.length-1));
+  const track = list[idx];
+  if(!track) return;
+  // if blob not available (page reload), user must re-upload file; show note
+  if(!track.url && !track.blobAvailable){
+    alert('Track file not available in this session. Re-upload the file to play it.');
+    return;
+  }
+  if(!track.url && track.fileName){
+    // cannot reconstruct URL — notify
+    alert('File not available in this session: ' + track.fileName + '. Re-upload if you want to play it.');
+    return;
+  }
+  audio.src = track.url;
+  audio.play().then(()=> {
+    state.current.playing = true;
+    updatePlayUI();
+  }).catch(err=> console.warn('play failed', err));
+  nowTitle.textContent = track.title || track.fileName || 'Unknown';
+  nowArtist.textContent = track.artist || track.genre || '';
+  renderCurrentPlaylist();
+}
+function updatePlayUI(){
+  playBtn.textContent = audio.paused ? '▶️' : '⏸️';
+}
+
+/* ======= Next / Prev ======= */
+nextBtn.onclick = ()=> {
+  const list = getCurrentList();
+  if(list.length===0) return;
+  state.current.index = (state.current.index + 1) % list.length;
+  playIndex();
+};
+prevBtn.onclick = ()=> {
+  const list = getCurrentList();
+  if(list.length===0) return;
+  state.current.index = (state.current.index - 1 + list.length) % list.length;
+  playIndex();
+};
+playBtn.onclick = ()=> {
+  if(!audio.src){
+    // try start playing current index
+    playIndex();
+    return;
+  }
+  if(audio.paused) audio.play();
+  else audio.pause();
+  updatePlayUI();
+};
+
+/* ======= Progress / time ======= */
+audio.ontimeupdate = ()=>{
+  if(!audio.duration || isNaN(audio.duration)) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  bar.style.width = pct + '%';
+  currTime.textContent = formatTime(audio.currentTime);
+  durTime.textContent = formatTime(audio.duration);
+};
+audio.onplay = ()=> updatePlayUI();
+audio.onpause = ()=> updatePlayUI();
+audio.onended = ()=> { nextBtn.click(); };
+
+progress.onclick = (e)=>{
+  const rect = progress.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const pct = x / rect.width;
+  if(audio.duration) audio.currentTime = pct * audio.duration;
+};
+
+function formatTime(s){
+  if(!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s/60), sec = Math.floor(s%60).toString().padStart(2,'0');
+  return m + ':' + sec;
+}
+
+/* ======= Volume ======= */
+vol.value = 1;
+vol.oninput = ()=> { audio.volume = parseFloat(vol.value); };
+
+/* ======= Search & Filter ======= */
+searchInput.oninput = ()=> renderLibrary(searchInput.value);
+selectGenre.onchange = ()=> renderLibrary(searchInput.value + ' ' + (selectGenre.value||''));
+
+/* ======= Playlist create/save/delete buttons ======= */
+createPl.onclick = ()=> {
+  createPlaylist(plName.value.trim());
+  plName.value = '';
+};
+qs('selectPl').onchange = (e)=> {
+  const name = e.target.value;
+  if(name) loadPlaylist(name);
+};
+savePl.onclick = ()=> {
+  const n = selectPl.value || state.current.playlistName;
+  savePlaylist(n);
+};
+deletePl.onclick = ()=> {
+  const n = selectPl.value || state.current.playlistName;
+  deletePlaylist(n);
+};
+
+/* ======= Theme toggle ======= */
+themeToggle.onclick = ()=>{
+  const root = document.documentElement;
+  if(document.body.getAttribute('data-theme')==='dark') document.body.setAttribute('data-theme','light');
+  else document.body.setAttribute('data-theme','dark');
+};
+
+/* ======= Init ======= */
+loadMeta();
+renderLibrary('');
+renderPlaylists();
+renderSelectPl();
+renderCurrentPlaylist();
+
+/* ======= Note about file persistence ======= */
+/* Uploaded files are accessed with URL.createObjectURL(file) and stored in-memory (object URL).
+   object URLs and File blobs are not persisted through localStorage. If you reload the page,
+   the metadata (title/artist/genre) and playlist membership remain (saved in localStorage),
+   but the actual file URLs will be gone — you'll need to re-upload files to play again.
+   For full persistence across sessions consider using IndexedDB to store Blobs or a backend (Node/Firebase). */
+</script>
+</body>
+</html>
